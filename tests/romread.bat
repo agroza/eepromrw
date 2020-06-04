@@ -7,4 +7,5 @@ echo ---------------------------------------------------------------------------
 echo - License: GNU General Public License v3.0                                -
 echo ---------------------------------------------------------------------------
 
-eepromrw.exe -read -address=d000:0000 -size=2000 read.bin
+eepromrw.exe -read -addr=d000:0000 -size=2000 -file=read.bin
+echo.

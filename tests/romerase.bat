@@ -7,4 +7,5 @@ echo ---------------------------------------------------------------------------
 echo - License: GNU General Public License v3.0                                -
 echo ---------------------------------------------------------------------------
 
-eepromrw.exe -erase -address=d000:0000 -size=2000
+eepromrw.exe -erase -protect -addr=d000:0000 -size=2000
+echo.

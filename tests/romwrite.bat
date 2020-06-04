@@ -7,4 +7,5 @@ echo ---------------------------------------------------------------------------
 echo - License: GNU General Public License v3.0                                -
 echo ---------------------------------------------------------------------------
 
-eepromrw.exe -write -address=d000:0000 -size=2000 write.bin
+eepromrw.exe -write -protect -addr=d000:0000 -size=2000 -file=write.bin
+echo.
