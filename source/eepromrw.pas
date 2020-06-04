@@ -10,30 +10,65 @@ program eepromrw;
 uses
   Crt;
 
+type
+  TOperation = (
+    opInvalid,
+    opRead,
+    opWrite,
+    opErase
+  );
+
+  TError = (
+    erOperation,
+    erAddress,
+    erSize,
+    erFile
+  );
+  TErrors = set of TError;
+
+  TParameters = record
+    Operation: TOperation;
+    Protect: Boolean;
+    Segment: Word;
+    Offset: Word;
+    Size: Word;
+    FileName: String;
+    Errors: TErrors;
+  end;
+
 const
   { program stringtable }
-  sProgramTitle          = 'EEPROM Read/Write  VER: 0.1 REV: B';
+  sProgramTitle          = 'EEPROM Read/Write  VER: 0.1 REV: D';
   sProgramCopyright      = 'Copyright (C) 1998-2020 Microprogramming TECHNIQUES';
   sProgramAuthor         = 'Programming/PC Code: Alexandru Groza';
   sProgramRights         = 'All rights reserved.';
 
-  sParametersMissing     = 'Parameters missing.';
-  sAddressInvalid        = 'Address parameter is invalid.';
-  sSizeInvalid           = 'Size parameter is invalid.';
-  sReadWriteInvalid      = 'Read, Write, or Erase parameter is invalid.';
-  sUsageBasic            = 'Usage is:' + #13#10 +
-                           '  eepromrw.exe -read|write|erase -address=SSSS:OOOO -size=BBBB <filename.bin>' + #13#10;
-  sUsageExtra1           = 'Where:' + #13#10 +
-                           '  -read reads the EEPROM into specified filename' + #13#10 +
-                           '  -write writes the EEPROM from specified filename' + #13#10 +
-                           '  -erase writes the EEPROM with zeroes';
-  sUsageExtra2           = '  SSSS:OOOO represents hexadecimal address as SEGMENT:OFFSET' + #13#10 +
-                           '  BBBB represents hexadecimal ROM size in bytes' + #13#10 +
-                           '  <filename.bin> is mandatory for reads and writes' + #13#10;
-  sUsageExample          = 'Examples:' + #13#10 +
-                           '  eepromrw.exe -read  -address=D000:0000 -size=2000 ioifrom0.bin' + #13#10 +
-                           '  eepromrw.exe -write -address=D000:0000 -size=4000 rom.bin' + #13#10 +
-                           '  eepromrw.exe -erase -address=D000:0000 -size=2000';
+  sParameterErrors: array[TError] of String = (
+    'Operation',
+    'Address',
+    'Size',
+    'File'
+  );
+  sParameterMissing      = ' parameter missing.';
+  sHelp                  = 'Type:' + #13#10 +
+                           '  eepromrw.exe -help';
+  sHelpUsage             = 'Usage is:' + #13#10 +
+                           '  eepromrw.exe [-help] -read | -write | -erase [-protect] -addr=SSSS:OOOO' + #13#10 +
+                           '    size=BBBB [-file=filename.bin]' + #13#10;
+  sHelpParameters1       = 'Where:' + #13#10 +
+                           '  -help    shows this screen; all other parameters are ignored' + #13#10 +
+                           '  -read    reads the ROM contents into specified filename';
+  sHelpParameters2       = '  -write   writes the EEPROM with data from specified filename' + #13#10 +
+                           '  -erase   writes the EEPROM with zeroes' + #13#10 +
+                           '  -protect if specified, enables EEPROM SDP after write or erase';
+  sHelpParameters3       = '  -addr    specifies the hexadecimal EEPROM address as SEGMENT:OFFSET' + #13#10 +
+                           '  -size    specifies the hexadecimal (EEP)ROM size, in bytes' + #13#10 +
+                           '  -file    specifies the path and filename of the binary ROM file' + #13#10 +
+                           '           and is mandatory for read and write operations' + #13#10;
+  sHelpExamples          = 'Examples:' + #13#10 +
+                           '  eepromrw.exe -read -addr=D000:0000 -size=2000 -file=ioifrom0.bin' + #13#10 +
+                           '  eepromrw.exe -write -protect -addr=D000:0000 -size=4000 -file=rom.bin' + #13#10 +
+                           '  eepromrw.exe -erase -addr=D000:0000 -size=2000';
 
   sSizeMismatch          = 'Input file size does not match the specified ROM size.';
   sCannotReadInputFile   = 'Cannot read input file ';
@@ -41,14 +76,25 @@ const
   sCannotWriteMemory     = 'Cannot write memory. Chip is not an EEPROM or is damaged.';
   sProgress              = 'Progress: ';
 
+  sEmpty                 = '';
+
+  pHelp                  = '-help';
   pRead                  = '-read';
   pWrite                 = '-write';
   pErase                 = '-erase';
-  pAddress               = '-address=';
+  pProtect               = '-protect';
+  pAddress               = '-addr=';
   pSize                  = '-size=';
+  pFileName              = '-file=';
 
   cBackslash             = '\';
   cHexIdentifier         = '$';
+  cPercent               = '%';
+  cEqual                 = '=';
+  cColon                 = ':';
+
+  kWriteRetries          = 6;
+  kMinimumWriteCycleTime = 2;
 
 function LowerCase(const AString: String): String; assembler;
 asm
@@ -116,22 +162,7 @@ begin
   end;
 end;
 
-function ExtractSegmentOffset(const AParameter: String; var ASegment, AOffset: Word): Boolean;
-begin
-  ExtractSegmentOffset := Pos(pAddress, AParameter) <> 0;
-
-  ASegment := StrToIntDef(cHexIdentifier + Copy(AParameter, Succ(Pos('=', AParameter)), 4), 0);
-  AOffset := StrToIntDef(cHexIdentifier + Copy(AParameter, Succ(Pos(':', AParameter)), 4), 0);
-end;
-
-function ExtractSize(const AParameter: String; var ASize: Word): Boolean;
-begin
-  ExtractSize := Pos(pSize, AParameter) <> 0;
-
-  ASize := StrToIntDef(cHexIdentifier + Copy(AParameter, Succ(Pos('=', AParameter)), 4), 0);
-end;
-
-procedure DisplayProgress(const AOffset, ASize: Word);
+procedure WriteProgress(const AOffset, ASize: Word);
 var
   LCurrentX: Byte;
   LProgress: String;
@@ -140,33 +171,33 @@ begin
   Str((Succ(AOffset) / ASize) * 100 : 4 : 2, LProgress);
 
   LCurrentX := WhereX;
-  Write(LProgress, '%');
+  Write(LProgress, cPercent);
   GotoXY(LCurrentX, WhereY);
 end;
 
-procedure ReadEEPROM(const ASegment, AOffset, ASize: Word; const AFileName: String);
+procedure ReadEEPROM(const AParameters: TParameters);
 var
   I: Integer;
   LOutputFile: File of Byte;
 
 begin
-  Assign(LOutputFile, AFileName);
+  Assign(LOutputFile, AParameters.FileName);
 {$I-}
   Rewrite(LOutputFile);
 {$I+}
   if IOResult <> 0 then
   begin
-    Writeln(sCannotWriteOutputFile, AFileName);
+    Writeln(sCannotWriteOutputFile, AParameters.FileName);
     Exit;
   end;
 
   Write(sProgress);
 
-  for I := 0 to Pred(ASize) do
+  for I := 0 to Pred(AParameters.Size) do
   begin
-    Write(LOutputFile, Mem[ASegment : AOffset + I]);
+    Write(LOutputFile, Mem[AParameters.Segment : AParameters.Offset + I]);
 
-    DisplayProgress(I, ASize);
+    WriteProgress(I, AParameters.Size);
   end;
 
   Writeln;
@@ -174,11 +205,21 @@ begin
   Close(LOutputFile);
 end;
 
-procedure EnableSDPWrites(const ASegment, AOffset: Word);
+procedure EnableSDPWrites(const ASegment: Word);
 begin
   Mem[ASegment : $1555] := $AA;     { this sequence is described }
   Mem[ASegment : $0AAA] := $55;     { in the ATMEL 28C64B datasheet }
   Mem[ASegment : $1555] := $A0;     { at page 8 (REV. 0270H-12/99) }
+end;
+
+procedure DisableSDPWrites(const ASegment: Word);
+begin
+  Mem[ASegment : $1555] := $AA;     { this sequence is described }
+  Mem[ASegment : $0AAA] := $55;     { in the ATMEL 28C64B datasheet }
+  Mem[ASegment : $1555] := $80;     { at page 8 (REV. 0270H-12/99) }
+  Mem[ASegment : $1555] := $AA;
+  Mem[ASegment : $0AAA] := $55;
+  Mem[ASegment : $1555] := $20;
 end;
 
 function WriteMemoryByte(const ASegment, AOffset: Word; const AByte: Byte): Boolean;
@@ -190,11 +231,11 @@ begin
   begin
     Mem[ASegment : AOffset] := AByte;
 
-    LRetries := 6;
+    LRetries := kWriteRetries;
 
     while (Mem[ASegment : AOffset] <> AByte) and (LRetries <> 0)  do
     begin
-      Delay(2);
+      Delay(kMinimumWriteCycleTime);
       Dec(LRetries);
     end;
   end;
@@ -208,7 +249,7 @@ begin
 
   if not WriteMemoryByte(ASegment, AOffset, AByte) then
   begin
-    EnableSDPWrites(ASegment, AOffset);
+    EnableSDPWrites(ASegment);
 
     if not WriteMemoryByte(ASegment, AOffset, AByte) then
     begin
@@ -219,24 +260,24 @@ begin
   end;
 end;
 
-procedure WriteEEPROM(const ASegment, AOffset, ASize: Word; const AFileName: String);
+procedure WriteEEPROM(const AParameters: TParameters);
 var
   I: Integer;
   LByte: Byte;
   LOutputFile: File of Byte;
 
 begin
-  Assign(LOutputFile, AFileName);
+  Assign(LOutputFile, AParameters.FileName);
 {$I-}
   Reset(LOutputFile);
 {$I+}
   if IOResult <> 0 then
   begin
-    Writeln(sCannotReadInputFile, AFileName);
+    Writeln(sCannotReadInputFile, AParameters.FileName);
     Exit;
   end;
 
-  if ASize <> FileSize(LOutputFile) then
+  if AParameters.Size <> FileSize(LOutputFile) then
   begin
     Writeln(sSizeMismatch);
     Exit;
@@ -244,98 +285,232 @@ begin
 
   Write(sProgress);
 
-  for I := 0 to Pred(ASize) do
+  for I := 0 to Pred(AParameters.Size) do
   begin
     Read(LOutputFile, LByte);
 
-    DisplayProgress(I, ASize);
+    WriteProgress(I, AParameters.Size);
 
-    if not WriteEEPROMByte(ASegment, AOffset + I, LByte) then
+    if not WriteEEPROMByte(AParameters.Segment, AParameters.Offset + I, LByte) then
       Break;
   end;
+
+  DisableSDPWrites(AParameters.Segment);
 
   Writeln;
 
   Close(LOutputFile);
 end;
 
-procedure EraseEEPROM(const ASegment, AOffset, ASize: Word);
+procedure EraseEEPROM(const AParameters: TParameters);
 var
   I: Integer;
 
 begin
   Write(sProgress);
 
-  for I := 0 to Pred(ASize) do
+  for I := 0 to Pred(AParameters.Size) do
   begin
-    DisplayProgress(I, ASize);
+    WriteProgress(I, AParameters.Size);
 
-    if not WriteEEPROMByte(ASegment, AOffset + I, 0) then
+    if not WriteEEPROMByte(AParameters.Segment, AParameters.Offset + I, $00) then
       Break;
   end;
 
+  DisableSDPWrites(AParameters.Segment);
+
   Writeln;
 end;
 
-procedure WriteUsage;
+procedure WriteProgramHeader;
 begin
   Writeln;
-  Writeln(sUsageBasic);
-  Writeln(sUsageExtra1);
-  Writeln(sUsageExtra2);
-  Writeln(sUsageExample);
-end;
-
-var
-  GSegment: Word;
-  GOffset: Word;
-  GSize: Word;
-
-begin
-  Writeln;
+  TextColor(White);
   Writeln(sProgramTitle);
+  TextColor(LightGray);
   Writeln(sProgramCopyright);
   Writeln(sProgramAuthor);
   Writeln(sProgramRights);
   Writeln;
+end;
 
-  if ParamCount >= 3 then
+procedure WriteHelp;
+begin
+  Writeln(sHelpUsage);
+  Writeln(sHelpParameters1);
+  Writeln(sHelpParameters2);
+  Writeln(sHelpParameters3);
+  Writeln(sHelpExamples);
+end;
+
+procedure WriteParameterErrors(const AErrors: TErrors);
+var
+  LError: TError;
+
+begin
+  TextColor(Red);
+
+  for LError := Low(TError) to High(TError) do
   begin
-    if not ExtractSegmentOffset(LowerCase(ParamStr(2)), GSegment, GOffset) then
+    if LError in AErrors then
     begin
-      Writeln(sAddressInvalid);
-      WriteUsage;
-      Exit;
+      Write(sParameterErrors[LError]);
+      Writeln(sParameterMissing);
+    end;
+  end;
+
+  TextColor(LightGray);
+  Writeln;
+  Writeln(sHelp);
+end;
+
+procedure SetAllErrors(var AErrors: TErrors);
+var
+  LError: TError;
+
+begin
+  for LError := Low(TError) to High(TError) do
+  begin
+    Include(AErrors, LError);
+  end;
+end;
+
+function ProcessParameters(var AParameters: TParameters): Boolean;
+var
+  I: Integer;
+  LParameter: String;
+
+begin
+  FillChar(AParameters, SizeOf(AParameters), $00);
+
+  SetAllErrors(AParameters.Errors);
+
+  if ParamCount > 0 then
+  begin
+    for I := 1 to ParamCount do
+    begin
+      LParameter := LowerCase(ParamStr(I));
+
+      if LParameter = pRead then
+      begin
+        AParameters.Operation := opRead;
+
+        Break;
+      end else
+      if LParameter = pWrite then
+      begin
+        AParameters.Operation := opWrite;
+
+        Break;
+      end else
+      if LParameter = pErase then
+      begin
+        AParameters.Operation := opErase;
+
+        Break;
+      end;
     end;
 
-    if not ExtractSize(LowerCase(ParamStr(3)), GSize) then
+    if AParameters.Operation <> opInvalid then
     begin
-      Writeln(sSizeInvalid);
-      WriteUsage;
-      Exit;
+      Exclude(AParameters.Errors, erOperation);
     end;
 
-    if LowerCase(ParamStr(1)) = pRead then
-    begin
-      ReadEEPROM(GSegment, GOffset, GSize, ParamStr(4));
-    end else
-    if LowerCase(ParamStr(1)) = pWrite then
-    begin
-      WriteEEPROM(GSegment, GOffset, GSize, ParamStr(4));
-    end else
-    if LowerCase(ParamStr(1)) = pErase then
-    begin
-      EraseEEPROM(GSegment, GOffset, GSize);
-    end else
-    begin
-      Writeln(sReadWriteInvalid);
-      WriteUsage;
+    case AParameters.Operation of
+      opWrite, opErase:
+        for I := 1 to ParamCount do
+        begin
+          if LowerCase(ParamStr(I)) = pProtect then
+          begin
+            AParameters.Protect := True;
+
+            Break;
+          end;
+        end;
+
     end;
 
-    Writeln;
+    for I := 1 to ParamCount do
+    begin
+      LParameter := LowerCase(ParamStr(I));
+
+      if Pos(pAddress, LParameter) <> 0 then
+      begin
+        AParameters.Segment := StrToIntDef(cHexIdentifier + Copy(LParameter, Succ(Pos(cEqual, LParameter)), 4), 0);
+        AParameters.Offset := StrToIntDef(cHexIdentifier + Copy(LParameter, Succ(Pos(cColon, LParameter)), 4), 0);
+
+        Exclude(AParameters.Errors, erAddress);
+
+        Break;
+      end;
+    end;
+
+    for I := 1 to ParamCount do
+    begin
+      LParameter := LowerCase(ParamStr(I));
+
+      if Pos(pSize, LParameter) <> 0 then
+      begin
+        Aparameters.Size := StrToIntDef(cHexIdentifier + Copy(LParameter, Succ(Pos(cEqual, LParameter)), 4), 0);
+
+        Exclude(AParameters.Errors, erSize);
+
+        Break;
+      end;
+    end;
+
+    if AParameters.Operation = opErase then
+    begin
+      Exclude(AParameters.Errors, erFile);
+    end else
+    begin
+      for I := 1 to ParamCount do
+      begin
+        LParameter := LowerCase(ParamStr(I));
+
+        if Pos(pFileName, LParameter) <> 0 then
+        begin
+          Aparameters.FileName := LParameter;
+          Delete(AParameters.FileName, 1, Pos(cEqual, LParameter));
+
+          Exclude(AParameters.Errors, erFile);
+
+          Break;
+        end;
+      end;
+    end;
+  end;
+
+  ProcessParameters := (ParamCount > 0) and (AParameters.Errors = []);
+end;
+
+var
+  GParameters: TParameters;
+
+begin
+  WriteProgramHeader;
+
+  if (ParamCount > 0) and (ParamStr(1) = pHelp) then
+  begin
+    WriteHelp;
   end else
   begin
-    Writeln(sParametersMissing);
-    WriteUsage;
+    if ProcessParameters(GParameters) then
+    begin
+      case GParameters.Operation of
+        opRead:
+          ReadEEPROM(GParameters);
+
+        opWrite:
+          WriteEEPROM(GParameters);
+
+        opErase:
+          EraseEEPROM(GParameters);
+
+      end;
+    end else
+    begin
+      WriteParameterErrors(GParameters.Errors);
+    end;
   end;
 end.
