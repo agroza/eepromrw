@@ -18,13 +18,13 @@ type
     opErase
   );
 
-  TError = (
+  TParameterError = (
     erOperation,
     erAddress,
     erSize,
     erFile
   );
-  TErrors = set of TError;
+  TParameterErrors = set of TParameterError;
 
   TParameters = record
     Operation: TOperation;
@@ -33,7 +33,7 @@ type
     Offset: Word;
     Size: Word;
     FileName: String;
-    Errors: TErrors;
+    Errors: TParameterErrors;
   end;
 
 const
@@ -43,26 +43,26 @@ const
   sProgramAuthor         = 'Programming/PC Code: Alexandru Groza';
   sProgramRights         = 'All rights reserved.';
 
-  sParameterErrors: array[TError] of String = (
+  sParameterErrors: array[TParameterError] of String = (
     'Operation',
     'Address',
     'Size',
     'File'
   );
   sParameterMissing      = ' parameter missing.';
-  sHelp                  = 'Type:' + #13#10 +
+  sTypeHelp              = 'Type:' + #13#10 +
                            '  eepromrw.exe -help';
   sHelpUsage             = 'Usage is:' + #13#10 +
                            '  eepromrw.exe [-help] -read | -write | -erase [-protect] -addr=SSSS:OOOO' + #13#10 +
                            '    size=BBBB [-file=filename.bin]' + #13#10;
   sHelpParameters1       = 'Where:' + #13#10 +
                            '  -help    shows this screen; all other parameters are ignored' + #13#10 +
-                           '  -read    reads the ROM contents into specified filename';
-  sHelpParameters2       = '  -write   writes the EEPROM with data from specified filename' + #13#10 +
-                           '  -erase   writes the EEPROM with zeroes' + #13#10 +
-                           '  -protect if specified, enables EEPROM SDP after write or erase';
-  sHelpParameters3       = '  -addr    specifies the hexadecimal EEPROM address as SEGMENT:OFFSET' + #13#10 +
-                           '  -size    specifies the hexadecimal (EEP)ROM size, in bytes' + #13#10 +
+                           '  -read    reads the ROM contents into specified filename' + #13#10 +
+                           '  -write   writes the EEPROM with data from specified filename';
+  sHelpParameters2       = '  -erase   writes the EEPROM with zeroes' + #13#10 +
+                           '  -protect if specified, enables EEPROM SDP after write or erase' + #13#10 +
+                           '  -addr    specifies the hexadecimal (EEP)ROM address as SEGMENT:OFFSET';
+  sHelpParameters3       = '  -size    specifies the hexadecimal (EEP)ROM size, in bytes' + #13#10 +
                            '  -file    specifies the path and filename of the binary ROM file' + #13#10 +
                            '           and is mandatory for read and write operations' + #13#10;
   sHelpExamples          = 'Examples:' + #13#10 +
@@ -343,35 +343,35 @@ begin
   Writeln(sHelpExamples);
 end;
 
-procedure WriteParameterErrors(const AErrors: TErrors);
+procedure WriteParameterErrors(const AParameterErrors: TParameterErrors);
 var
-  LError: TError;
+  LParameterError: TParameterError;
 
 begin
   TextColor(Red);
 
-  for LError := Low(TError) to High(TError) do
+  for LParameterError := Low(TParameterError) to High(TParameterError) do
   begin
-    if LError in AErrors then
+    if LParameterError in AParameterErrors then
     begin
-      Write(sParameterErrors[LError]);
+      Write(sParameterErrors[LParameterError]);
       Writeln(sParameterMissing);
     end;
   end;
 
   TextColor(LightGray);
   Writeln;
-  Writeln(sHelp);
+  Writeln(sTypeHelp);
 end;
 
-procedure SetAllErrors(var AErrors: TErrors);
+procedure SetAllParameterErrors(var AParameterErrors: TParameterErrors);
 var
-  LError: TError;
+  LParameterError: TParameterError;
 
 begin
-  for LError := Low(TError) to High(TError) do
+  for LParameterError := Low(TParameterError) to High(TParameterError) do
   begin
-    Include(AErrors, LError);
+    Include(AParameterErrors, LParameterError);
   end;
 end;
 
@@ -383,7 +383,7 @@ var
 begin
   FillChar(AParameters, SizeOf(AParameters), $00);
 
-  SetAllErrors(AParameters.Errors);
+  SetAllParameterErrors(AParameters.Errors);
 
   if ParamCount > 0 then
   begin
@@ -481,7 +481,7 @@ begin
     end;
   end;
 
-  ProcessParameters := (ParamCount > 0) and (AParameters.Errors = []);
+  ProcessParameters := AParameters.Errors = [];
 end;
 
 var
