@@ -2,7 +2,7 @@
 28C64B EEPROM Read/Write
 
 This program reads, writes, verifies, or erases a 28C64B EEPROM located at a given address.\
-I have written it to easily program and read back OPTION ROMs.
+I wrote it to easily program and read back OPTION ROMs.
 
 ```
 Usage is:
