@@ -23,7 +23,7 @@ Where:
 
 Examples:
   eepromrw.exe -read -addr=D000:0000 -size=2000 -file=ioifrom0.bin
-  eepromrw.exe -write -protect -addr=D000:0000 -size=4000 -file=rom.bin
+  eepromrw.exe -write -protect -addr=D000:0000 -size=4000 -file=optrom.bin
   eepromrw.exe -verify -addr=D000:0000 -size=2000 -file=ioifrom0.bin
   eepromrw.exe -erase -addr=D000:0000 -size=2000
 ```
