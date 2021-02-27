@@ -5,7 +5,7 @@ I wrote it to easily program and read back OPTION ROMs.
 
 ### Program Usage
 
-I pasted these lines straight from the commandline help screen.
+The following lines are taken directly from the commandline help screen.
 
 ```
 Usage is:
