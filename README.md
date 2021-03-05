@@ -1,4 +1,6 @@
-# eepromrw
+# EEPROM Read/Write
+
+This project is also known as ```eepromrw```.
 
 ## Synopsis
 
