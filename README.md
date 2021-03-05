@@ -1,5 +1,7 @@
 # eepromrw
 
+## Synopsis
+
 The 28C64B EEPROM Read/Write program reads, writes, verifies, or erases a 28C64B EEPROM located at the given address.\
 I wrote it to easily program and read back OPTION ROMs.
 
