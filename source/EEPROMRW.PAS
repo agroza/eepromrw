@@ -1,10 +1,11 @@
 { --------------------------------------------------------------------------- }
 { - EEPROM Read/Write (eepromrw.pas)                                        - }
-{ - Copyright (C) 1998-2020 Alexandru Groza of Microprogramming TECHNIQUES  - }
+{ - Copyright (C) 1998-2021 Alexandru Groza of Microprogramming TECHNIQUES  - }
 { - All rights reserved.                                                    - }
 { --------------------------------------------------------------------------- }
 { - License: GNU General Public License v3.0                                - }
 { --------------------------------------------------------------------------- }
+
 program eepromrw;
 
 uses
@@ -41,8 +42,8 @@ const
   { program stringtable }
   sEmpty                  = '';
 
-  sProgramTitle           = '28C64B EEPROM Read/Write  VER: 0.2 REV: B';
-  sProgramCopyright       = 'Copyright (C) 1998-2020 Microprogramming TECHNIQUES';
+  sProgramTitle           = '28C64B EEPROM Read/Write  VER: 0.2 REV: D';
+  sProgramCopyright       = 'Copyright (C) 1998-2021 Microprogramming TECHNIQUES';
   sProgramAuthor          = 'Programming/PC Code: Alexandru Groza';
   sProgramRights          = 'All rights reserved.';
 
@@ -216,24 +217,17 @@ begin
   end;
 end;
 
-function IntToHex(const AInteger: Integer): String;
+function IntToHex(const AValue: Longint): String;
 const
-  kHexLength = 4;
-  kHexDigits: array[0..15] of Char = '0123456789ABCDEF';
-
-var
-  I: Integer;
-  LInteger: Integer;
+  kHexDigits: array[$00..$0F] of Char = '0123456789ABCDEF';
 
 begin
-  LInteger := AInteger;
-
-  IntToHex[0] := Char(kHexLength);
-
-  for I := kHexLength downto 1 do
+  if AValue <= 0 then
   begin
-    IntToHex[I] := kHexDigits[LInteger and $F];
-    LInteger := LInteger shr kHexLength;
+    IntToHex := sEmpty;
+  end else
+  begin
+    IntToHex := IntToHex(AValue div $10) + kHexDigits[AValue mod $10];
   end;
 end;
 
@@ -335,7 +329,7 @@ begin
 
     if FindComplexParameter(pSize, LValue) then
     begin
-      Aparameters.Size := StrToIntDef(cHexIdentifier + Copy(LValue, Succ(Pos(cEqual, LValue)), 4), 0);
+      AParameters.Size := StrToIntDef(cHexIdentifier + Copy(LValue, Succ(Pos(cEqual, LValue)), 4), 0);
 
       Exclude(AParameters.Errors, erSize);
     end;
@@ -347,7 +341,7 @@ begin
     begin
       if FindComplexParameter(pFileName, LValue) then
       begin
-        Aparameters.FileName := LValue;
+        AParameters.FileName := LValue;
         Delete(AParameters.FileName, 1, Pos(cEqual, LValue));
 
         Exclude(AParameters.Errors, erFile);
@@ -474,9 +468,6 @@ begin
   if IOResult <> 0 then
   begin
     WriteError(sCannotCreateOutputFile + AParameters.FileName);
-{$I-}
-    Close(LOutputFile);
-{$I+}
     Exit;
   end;
 
@@ -576,9 +567,6 @@ begin
   if IOResult <> 0 then
   begin
     WriteError(sCannotOpenInputFile + AParameters.FileName);
-{$I-}
-    Close(LInputFile);
-{$I+}
     Exit;
   end;
 
@@ -624,7 +612,7 @@ begin
         if Mem[AParameters.Segment : AParameters.Offset + I] <> LByte then
         begin
           WriteErrorExplanation(sROMFileDifferent, sFirstDifferentByte +
-	    IntToHex(AParameters.Segment) + cColon + IntToHex(AParameters.Offset + I));
+            IntToHex(AParameters.Segment) + cColon + IntToHex(AParameters.Offset + I));
 {$I-}
           Close(LInputFile);
 {$I+}
