@@ -1,6 +1,6 @@
-# EEPROM Read/Write
+# eepromrw
 
-This project is also known as ```eepromrw```.
+EEPROM Read/Write Program
 
 ## Synopsis
 
