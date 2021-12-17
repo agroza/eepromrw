@@ -42,7 +42,7 @@ const
   { program stringtable }
   sEmpty                  = '';
 
-  sProgramTitle           = '28C64B EEPROM Read/Write  VER: 0.2 REV: D';
+  sProgramTitle           = '28C64B EEPROM Read/Write  VER: 0.3 REV: A';
   sProgramCopyright       = 'Copyright (C) 1998-2021 Microprogramming TECHNIQUES';
   sProgramAuthor          = 'Programming/PC Code: Alexandru Groza';
   sProgramRights          = 'All rights reserved.';
@@ -97,12 +97,12 @@ const
   sStatisticsBytes        = ' bytes ';
   sStatisticsProtection   = 'Protection: ';
 
-  sEnabledDisabled: array[Boolean] of String = (
+  sEnabledDisabled: array[Boolean] of String[8] = (
     'Disabled',
     'Enabled'
   );
 
-  sOperations: array[TOperation] of String = (
+  sOperations: array[TOperation] of String[8] = (
     sEmpty,
     'read',
     'written',
@@ -110,7 +110,7 @@ const
     'erased'
   );
 
-  sParameterErrors: array[TParameterError] of String = (
+  sParameterErrors: array[TParameterError] of String[9] = (
     'Operation',
     'Address',
     'Size',
@@ -189,8 +189,12 @@ var
 
 begin
   for I := Length(AString) downto 1 do
+  begin
     if AString[I] = cBackslash then
+    begin
       Break;
+    end;
+  end;
 
   if (I = 1) and (AString[I] <> cBackslash) then
   begin
@@ -217,17 +221,24 @@ begin
   end;
 end;
 
-function IntToHex(const AValue: Longint): String;
+function IntToHex(const AInteger: Integer): String;
 const
+  kHexLength = 4;
   kHexDigits: array[$00..$0F] of Char = '0123456789ABCDEF';
 
+var
+  I: Integer;
+  LInteger: Integer;
+
 begin
-  if AValue <= 0 then
+  LInteger := AInteger;
+
+  IntToHex[0] := Char(kHexLength);
+
+  for I := kHexLength downto 1 do
   begin
-    IntToHex := sEmpty;
-  end else
-  begin
-    IntToHex := IntToHex(AValue div $10) + kHexDigits[AValue mod $10];
+    IntToHex[I] := kHexDigits[LInteger and $0F];
+    LInteger := LInteger shr $04;
   end;
 end;
 
